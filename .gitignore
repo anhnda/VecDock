@@ -115,7 +115,7 @@ venv.bak/
 local_config_inference2.yml
 .vscode/
 
-
+workdir/
 *.zip
 
 .idea/
