@@ -51,7 +51,7 @@ def train(args, model, optimizer, scheduler, ema_weights, train_loader, val_load
             logs.update({'valinf_' + k: v for k, v in inf_metrics.items()}, step=epoch + 1)
 
         if not args.use_ema: ema_weights.copy_to(model.parameters())
-        ema_state_dict = copy.deepcopy(model.module.state_dict() if device.type == 'cuda' else model.state_dict())
+        ema_state_dict = model.state_dict()
         ema_weights.restore(model.parameters())
 
         if args.wandb:
@@ -60,7 +60,7 @@ def train(args, model, optimizer, scheduler, ema_weights, train_loader, val_load
             logs['current_lr'] = optimizer.param_groups[0]['lr']
             wandb.log(logs, step=epoch + 1)
 
-        state_dict = model.module.state_dict() if device.type == 'cuda' else model.state_dict()
+        state_dict = model.state_dict()
         if args.inference_earlystop_metric in logs.keys() and \
                 (args.inference_earlystop_goal == 'min' and logs[args.inference_earlystop_metric] <= best_val_inference_value or
                  args.inference_earlystop_goal == 'max' and logs[args.inference_earlystop_metric] >= best_val_inference_value):

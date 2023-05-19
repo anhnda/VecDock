@@ -1,4 +1,5 @@
 import copy
+import gc
 
 import numpy as np
 from torch_geometric.loader import DataLoader
@@ -13,11 +14,7 @@ from utils.diffusion_utils import get_t_schedule
 
 def loss_function(tr_pred, rot_pred, tor_pred, data, t_to_sigma, device, tr_weight=1, rot_weight=1,
                   tor_weight=1, apply_mean=True, no_torsion=False):
-    # tr_sigma, rot_sigma, tor_sigma = t_to_sigma(
-    #     *[torch.cat([d.complex_t[noise_type] for d in data]) if device.type == 'cuda' else data.complex_t[noise_type]
-    #       for noise_type in ['tr', 'rot', 'tor']])
-    # print(data)
-    # exit(-1)
+
     tr_sigma, rot_sigma, tor_sigma = t_to_sigma(
         *[data.complex_t[noise_type].cpu()
           for noise_type in ['tr', 'rot', 'tor']])
@@ -51,13 +48,14 @@ def loss_function(tr_pred, rot_pred, tor_pred, data, t_to_sigma, device, tr_weig
         tor_score_norm2 = torch.tensor(torus.score_norm(edge_tor_sigma.cpu().numpy())).float()
         tor_loss = ((tor_pred.cpu() - tor_score) ** 2 / tor_score_norm2)
         tor_base_loss = ((tor_score ** 2 / tor_score_norm2)).detach()
+        # apply_mean = False
         if apply_mean:
             tor_loss, tor_base_loss = tor_loss.mean() * torch.ones(1, dtype=torch.float), tor_base_loss.mean() * torch.ones(1, dtype=torch.float)
         else:
-            index = torch.cat([torch.ones(d['ligand'].edge_mask.sum()) * i for i, d in
-                               enumerate(data)]).long() if device.type == 'cuda' else data['ligand'].batch[
-                data['ligand', 'ligand'].edge_index[0][data['ligand'].edge_mask]]
-            num_graphs = len(data) if device.type == 'cuda' else data.num_graphs
+            index = data['ligand'].batch[
+                data['ligand', 'ligand'].edge_index[0][data['ligand'].edge_mask]].cpu()
+            # print(index.device)
+            num_graphs = data.num_graphs
             t_l, t_b_l, c = torch.zeros(num_graphs), torch.zeros(num_graphs), torch.zeros(num_graphs)
             c.index_add_(0, index, torch.ones(tor_loss.shape))
             c = c + 0.0001
@@ -71,6 +69,8 @@ def loss_function(tr_pred, rot_pred, tor_pred, data, t_to_sigma, device, tr_weig
             tor_loss, tor_base_loss = torch.zeros(len(rot_loss), dtype=torch.float), torch.zeros(len(rot_loss), dtype=torch.float)
 
     loss = tr_loss * tr_weight + rot_loss * rot_weight + tor_loss * tor_weight
+
+
     return loss, tr_loss.detach(), rot_loss.detach(), tor_loss.detach(), tr_base_loss, rot_base_loss, tor_base_loss
 
 
@@ -109,12 +109,13 @@ class AverageMeter():
 def train_epoch(model, loader, optimizer, device, t_to_sigma, loss_fn, ema_weigths):
     model.train()
     meter = AverageMeter(['loss', 'tr_loss', 'rot_loss', 'tor_loss', 'tr_base_loss', 'rot_base_loss', 'tor_base_loss'])
-
+    ic = 0
     for data in tqdm(loader, total=len(loader)):
         if device.type == 'cuda' and len(data) == 1 or device.type == 'cpu' and data.num_graphs == 1:
             print("Skipping batch of size 1 since otherwise batchnorm would not work.")
         optimizer.zero_grad()
         try:
+            ic += 1
             tr_pred, rot_pred, tor_pred = model(data)
             loss, tr_loss, rot_loss, tor_loss, tr_base_loss, rot_base_loss, tor_base_loss = \
                 loss_fn(tr_pred, rot_pred, tor_pred, data=data, t_to_sigma=t_to_sigma, device=device)
@@ -122,6 +123,13 @@ def train_epoch(model, loader, optimizer, device, t_to_sigma, loss_fn, ema_weigt
             optimizer.step()
             ema_weigths.update(model.parameters())
             meter.add([loss.cpu().detach(), tr_loss, rot_loss, tor_loss, tr_base_loss, rot_base_loss, tor_base_loss])
+            del data
+            del loss
+
+
+            gc.collect()
+            # if ic == 3:
+            #     return meter.summary()
         except RuntimeError as e:
             if 'out of memory' in str(e):
                 print('| WARNING: ran out of memory, skipping batch')
@@ -161,7 +169,7 @@ def test_epoch(model, loader, device, t_to_sigma, loss_fn, test_sigma_intervals=
             loss, tr_loss, rot_loss, tor_loss, tr_base_loss, rot_base_loss, tor_base_loss = \
                 loss_fn(tr_pred, rot_pred, tor_pred, data=data, t_to_sigma=t_to_sigma, apply_mean=False, device=device)
             meter.add([loss.cpu().detach(), tr_loss, rot_loss, tor_loss, tr_base_loss, rot_base_loss, tor_base_loss])
-
+            data = data.to_data_list()
             if test_sigma_intervals > 0:
                 complex_t_tr, complex_t_rot, complex_t_tor = [torch.cat([d.complex_t[noise_type] for d in data]) for
                                                               noise_type in ['tr', 'rot', 'tor']]

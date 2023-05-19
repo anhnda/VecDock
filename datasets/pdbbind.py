@@ -121,16 +121,19 @@ class PDBBind(Dataset):
         return len(self.complex_graphs)
 
     def get(self, idx):
+        dat = self.complex_graphs[idx]
+
         if self.require_ligand:
             # print("Get item")
-            complex_graph = copy.deepcopy(self.complex_graphs[idx])
+            complex_graph = copy.deepcopy(dat)
             complex_graph.mol = copy.deepcopy(self.rdkit_ligands[idx])
             # print(complex_graph.mol)
             return complex_graph
         else:
             # print("Get item", idx)
-
-            return copy.deepcopy(self.complex_graphs[idx])
+            a =  copy.deepcopy(dat)
+            del dat
+            return a
 
     def preprocessing(self):
         print(f'Processing complexes from [{self.split_path}] and saving it to [{self.full_cache_path}]')
