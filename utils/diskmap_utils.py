@@ -469,8 +469,10 @@ class ObjListXFile:
         return len(self.offset_list)
     def getitem(self, item):
         # time.sleep(10)
-
+        # return item
         fin = open(self.path, "rb")
+        if type(item) != int:
+            print("???? ", item, len(self.offset_list))
         dat = read_next_xobject_from_bin_file(fin, self.offset_list[item])
         # print("Dat: ", dat)
         if self.subFunc is not None:

@@ -456,6 +456,7 @@ def construct_loader(args, t_to_sigma):
     val_dataset = PDBBind(cache_path=args.cache_path, split_path=args.split_val, keep_original=True, **common_args)
 
     # loader_class = DataListLoader if torch.cuda.is_available() else DataLoader
+    # from torch.utils.data import DataLoader
     loader_class = DataLoader
     train_loader = loader_class(dataset=train_dataset, batch_size=args.batch_size,
                                 num_workers=args.num_dataloader_workers, shuffle=True, pin_memory=args.pin_memory)

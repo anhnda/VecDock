@@ -114,6 +114,7 @@ def train_epoch(model, loader, optimizer, device, t_to_sigma, loss_fn, ema_weigt
         if device.type == 'cuda' and len(data) == 1 or device.type == 'cpu' and data.num_graphs == 1:
             print("Skipping batch of size 1 since otherwise batchnorm would not work.")
         optimizer.zero_grad()
+         #continue
         try:
             ic += 1
             tr_pred, rot_pred, tor_pred = model(data)
@@ -147,7 +148,7 @@ def train_epoch(model, loader, optimizer, device, t_to_sigma, loss_fn, ema_weigt
                 continue
             else:
                 raise e
-
+     #return 0
     return meter.summary()
 
 
@@ -163,6 +164,7 @@ def test_epoch(model, loader, device, t_to_sigma, loss_fn, test_sigma_intervals=
 
     for data in tqdm(loader, total=len(loader)):
         try:
+             # continue
             with torch.no_grad():
                 tr_pred, rot_pred, tor_pred = model(data)
 
@@ -198,18 +200,18 @@ def test_epoch(model, loader, device, t_to_sigma, loss_fn, test_sigma_intervals=
                 continue
             else:
                 raise e
-
+    # return 0
     out = meter.summary()
     if test_sigma_intervals > 0: out.update(meter_all.summary())
     return out
 
 
-def inference_epoch(model, complex_graphs, device, t_to_sigma, args):
+def inference_epoch(model, dataset_x, n_data, device, t_to_sigma, args):
     t_schedule = get_t_schedule(inference_steps=args.inference_steps)
     tr_schedule, rot_schedule, tor_schedule = t_schedule, t_schedule, t_schedule
-
-    dataset = ListDataset(complex_graphs)
-    loader = DataLoader(dataset=dataset, batch_size=1, shuffle=False)
+    # print(complex_graphs)
+    # dataset = ListDataset(complex_graphs)
+    loader = DataLoader(dataset=dataset_x, sampler=[i for i in range(n_data)], batch_size=1, shuffle=False)
     rmsds = []
 
     for orig_complex_graph in tqdm(loader):
@@ -220,7 +222,7 @@ def inference_epoch(model, complex_graphs, device, t_to_sigma, args):
         failed_convergence_counter = 0
         while predictions_list == None:
             try:
-                predictions_list, confidences = sampling(data_list=data_list, model=model.module if device.type=='cuda' else model,
+                predictions_list, confidences = sampling(data_list=data_list, model= model,
                                                          inference_steps=args.inference_steps,
                                                          tr_schedule=tr_schedule, rot_schedule=rot_schedule,
                                                          tor_schedule=tor_schedule,

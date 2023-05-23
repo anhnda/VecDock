@@ -31,6 +31,8 @@ def train(args, model, optimizer, scheduler, ema_weights, train_loader, val_load
 
     print("Starting training...")
     for epoch in range(args.n_epochs):
+
+
         if epoch % 5 == 0: print("Run name: ", args.run_name)
         logs = {}
         train_losses = train_epoch(model, train_loader, optimizer, device, t_to_sigma, loss_fn, ema_weights)
@@ -41,6 +43,7 @@ def train(args, model, optimizer, scheduler, ema_weights, train_loader, val_load
         ema_weights.store(model.parameters())
         if args.use_ema: ema_weights.copy_to(model.parameters()) # load ema parameters into model for running validation and inference
         val_losses = test_epoch(model, val_loader, device, t_to_sigma, loss_fn, args.test_sigma_intervals)
+        # continue
         print("Epoch {}: Validation loss {:.4f}  tr {:.4f}   rot {:.4f}   tor {:.4f}"
               .format(epoch, val_losses['loss'], val_losses['tr_loss'], val_losses['rot_loss'], val_losses['tor_loss']))
 
@@ -124,14 +127,14 @@ def main_function():
             dict = torch.load(f'{args.restart_dir}/last_model.pt', map_location=torch.device('cpu'))
             if args.restart_lr is not None: dict['optimizer']['param_groups'][0]['lr'] = args.restart_lr
             optimizer.load_state_dict(dict['optimizer'])
-            model.module.load_state_dict(dict['model'], strict=True)
+            model.load_state_dict(dict['model'], strict=True)
             if hasattr(args, 'ema_rate'):
                 ema_weights.load_state_dict(dict['ema_weights'], device=device)
             print("Restarting from epoch", dict['epoch'])
         except Exception as e:
             print("Exception", e)
             dict = torch.load(f'{args.restart_dir}/best_model.pt', map_location=torch.device('cpu'))
-            model.module.load_state_dict(dict, strict=True)
+            model.load_state_dict(dict, strict=True)
             print("Due to exception had to take the best epoch and no optimiser")
 
     numel = sum([p.numel() for p in model.parameters()])
