@@ -47,8 +47,8 @@ def train(args, model, optimizer, scheduler, ema_weights, train_loader, val_load
         print("Epoch {}: Validation loss {:.4f}  tr {:.4f}   rot {:.4f}   tor {:.4f}"
               .format(epoch, val_losses['loss'], val_losses['tr_loss'], val_losses['rot_loss'], val_losses['tor_loss']))
 
-        if args.val_inference_freq != None and (epoch + 1) % args.val_inference_freq == 0:
-            inf_metrics = inference_epoch(model, val_loader.dataset.complex_graphs[:args.num_inference_complexes], device, t_to_sigma, args)
+        if args.val_inference_freq != None and epoch % args.val_inference_freq == 0:
+            inf_metrics = inference_epoch(model, val_loader.dataset,args.num_inference_complexes, device, t_to_sigma, args)
             print("Epoch {}: Val inference rmsds_lt2 {:.3f} rmsds_lt5 {:.3f}"
                   .format(epoch, inf_metrics['rmsds_lt2'], inf_metrics['rmsds_lt5']))
             logs.update({'valinf_' + k: v for k, v in inf_metrics.items()}, step=epoch + 1)

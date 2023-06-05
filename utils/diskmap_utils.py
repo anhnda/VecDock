@@ -1,4 +1,5 @@
 import sys
+from abc import ABC
 from multiprocessing import Queue, Process, Value, Semaphore
 import joblib
 from io import BytesIO
@@ -10,6 +11,7 @@ from tqdm import tqdm
 import mmap
 import gc
 import lazy_load
+from torch_geometric.data.dataset import Dataset
 
 BYTE_SIZE = 8
 
@@ -129,6 +131,7 @@ def read_bin_file_size_list(f, rewind=False):
     else:
         f.close()
     return size_list
+
 
 def reorder_xfile(path, replace=True):
     f = open(path, "rb")
@@ -251,9 +254,9 @@ def produce(func, idatum, queue, max_q_size=300, to_bin=True, fin_path=None, sub
         del d
         gc.collect()
 
-
         # time.sleep(0.1)
     print("End process: ", os.getpid())
+
 
 def consume(queue, n_completed, n_total, fout=None, forder=None, desc=None, buffer_max_size=50, fout2=None):
     buffer = []
@@ -328,7 +331,7 @@ def consume(queue, n_completed, n_total, fout=None, forder=None, desc=None, buff
 def p_diskmap(func, datum, is_dtuple=False, write_order=True, fout_path=None, fout_path2=None, sub_func=None, desc=None,
               njob=4, n_buffer_size=10,
               max_queue_size=300, **kwargs):
-     #print("PDismap args", desc)
+    # print("PDismap args", desc)
     n_total = len(datum)
     idatum = []
     if is_dtuple:
@@ -346,7 +349,7 @@ def p_diskmap(func, datum, is_dtuple=False, write_order=True, fout_path=None, fo
     n_completed = Value('i', 0)
     f_order = None
     if write_order:
-        f_order = open("%s_order" % fout_path,"w")
+        f_order = open("%s_order" % fout_path, "w")
 
     for i in range(njob):
         start_id = i * job_size
@@ -410,7 +413,7 @@ def p_diskmap_from_file(func, fin_path, fout_path=None, desc=None, njob=4, n_buf
         fout_path = generate_tmp_file()
 
     fout = open(fout_path, "wb")
-    #queue, n_completed, n_total, fout=None, forder=None, desc=None, buffer_max_size=50, fout2=None):
+    # queue, n_completed, n_total, fout=None, forder=None, desc=None, buffer_max_size=50, fout2=None):
     consumer = Process(target=consume, args=(queue, n_completed, n_total, fout, None, desc, n_buffer_size))
 
     for p in producers:
@@ -465,8 +468,10 @@ class ObjListXFile:
         else:
             self.offset_list = read_bin_file_offset_list(open(path, "rb"))
         self.subFunc = subFunc
+
     def __len__(self):
         return len(self.offset_list)
+
     def getitem(self, item):
         # time.sleep(10)
         # return item
@@ -485,5 +490,15 @@ class ObjListXFile:
         return self.getitem(item)
 
 
+class XFileDataset(Dataset, ABC):
+    def __init__(self, xfileObject):
+        super(XFileDataset, self).__init__()
+        self.xfile = xfileObject
+
+    def len(self) -> int:
+        return len(self.xfile)
+
+    def get(self, idx):
+        return self.xfile[idx]
 if __name__ == "__main__":
     tt()

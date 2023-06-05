@@ -28,7 +28,7 @@ parser.add_argument('--original_model_dir', type=str, default='workdir', help='P
 parser.add_argument('--restart_dir', type=str, default=None, help='')
 parser.add_argument('--use_original_model_cache', action='store_true', default=False, help='If this is true, the same dataset as in the original model will be used. Otherwise, the dataset parameters are used.')
 parser.add_argument('--data_dir', type=str, default='data/PDBBind_processed/', help='Folder containing original structures')
-parser.add_argument('--ckpt', type=str, default='best_model.pt', help='Checkpoint to use inside the folder')
+parser.add_argument('--ckpt', type=str, default='best_model', help='Checkpoint to use inside the folder')
 parser.add_argument('--model_save_frequency', type=int, default=0, help='Frequency with which to save the last model. If 0, then only the early stopping criterion best model is saved and overwritten.')
 parser.add_argument('--best_model_save_frequency', type=int, default=0, help='Frequency with which to save the best model. If 0, then only the early stopping criterion best model is saved and overwritten.')
 parser.add_argument('--run_name', type=str, default='test_confidence', help='')
@@ -225,7 +225,7 @@ def train(args, model, optimizer, scheduler, train_loader, val_loader, run_dir):
         if scheduler:
             scheduler.step(val_metrics[args.main_metric])
 
-        state_dict = model.module.state_dict() if device.type == 'cuda' else model.state_dict()
+        state_dict = model.state_dict()
 
         if args.main_metric_goal == 'min' and val_metrics[args.main_metric] < best_val_metric or \
                 args.main_metric_goal == 'max' and val_metrics[args.main_metric] > best_val_metric:
@@ -253,7 +253,7 @@ def construct_loader_confidence(args, device):
                    'rmsd_classification_cutoff': args.rmsd_classification_cutoff, 'use_original_model_cache': args.use_original_model_cache,
                    'cache_creation_id': args.cache_creation_id, "cache_ids_to_combine": args.cache_ids_to_combine,
                    "model_ckpt": args.ckpt}
-    loader_class = DataListLoader if torch.cuda.is_available() else DataLoader
+    loader_class = DataLoader
 
     exception_flag = False
     try:

@@ -73,19 +73,20 @@ class TensorProductConvLayer(torch.nn.Module):
         self.batch_norm = BatchNorm(out_irreps) if batch_norm else None
 
     def forward(self, node_attr, edge_index, edge_attr, edge_sh, out_nodes=None, reduce='mean'):
-
+        # print("inp shape: ", node_attr.shape, edge_index.shape, edge_attr.shape, edge_sh.shape, out_nodes)
         edge_src, edge_dst = edge_index
         tp = self.tp(node_attr[edge_dst], edge_sh, self.fc(edge_attr))
-
+        # print("Tp", tp.shape)
         out_nodes = out_nodes or node_attr.shape[0]
         out = scatter(tp, edge_src, dim=0, dim_size=out_nodes, reduce=reduce)
-
+        # print("out scatter", out.shape)
         if self.residual:
             padded = F.pad(node_attr, (0, out.shape[-1] - node_attr.shape[-1]))
             out = out + padded
 
         if self.batch_norm:
             out = self.batch_norm(out)
+        # print("TensorProdConvShape: ",out.shape)
         return out
 
 
@@ -298,7 +299,7 @@ class TensorProductScoreModel(torch.nn.Module):
         center_edge_attr = self.center_edge_embedding(center_edge_attr)
         center_edge_attr = torch.cat([center_edge_attr, lig_node_attr[center_edge_index[1], :self.ns]], -1)
         global_pred = self.final_conv(lig_node_attr, center_edge_index, center_edge_attr, center_edge_sh, out_nodes=data.num_graphs)
-
+        # print("Global pred shape", global_pred.shape)
         tr_pred = global_pred[:, :3] + global_pred[:, 6:9]
         rot_pred = global_pred[:, 3:6] + global_pred[:, 9:]
         data.graph_sigma_emb = self.timestep_emb_func(data.complex_t['tr'])
@@ -333,6 +334,7 @@ class TensorProductScoreModel(torch.nn.Module):
         if self.scale_by_sigma:
             tor_pred = tor_pred * torch.sqrt(torch.tensor(torus.score_norm(edge_sigma.cpu().numpy())).float()
                                              .to(data['ligand'].x.device))
+        # print("Rshape: ", tr_pred.shape, rot_pred.shape, tor_pred.shape)
         return tr_pred, rot_pred, tor_pred
 
     def build_lig_conv_graph(self, data):
@@ -402,7 +404,7 @@ class TensorProductScoreModel(torch.nn.Module):
     def build_center_conv_graph(self, data):
         # builds the filter and edges for the convolution generating translational and rotational scores
         edge_index = torch.cat([data['ligand'].batch.unsqueeze(0), torch.arange(len(data['ligand'].batch)).to(data['ligand'].x.device).unsqueeze(0)], dim=0)
-
+        # print("Edge index center",edge_index)
         center_pos, count = torch.zeros((data.num_graphs, 3)).to(data['ligand'].x.device), torch.zeros((data.num_graphs, 3)).to(data['ligand'].x.device)
         center_pos.index_add_(0, index=data['ligand'].batch, source=data['ligand'].pos)
         center_pos = center_pos / torch.bincount(data['ligand'].batch).unsqueeze(1)
