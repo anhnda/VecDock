@@ -52,6 +52,7 @@ def write_xobject_to_bin_file(obj, f, flush=True, bin_obj=False):
         f.flush()
     del obj
     del out_bytes
+    return sz + BYTE_SIZE
 
 
 def read_next_xobject_from_bin_file(f, offset=None):
@@ -447,26 +448,34 @@ def tt():
 
 
 class ObjListXFile:
-    def __init__(self, path, subFunc=None):
+    def __init__(self, path, subFunc=None, aux_path=None):
         self.path = path
-        sz_path = "%s.sz" % path
-        if os.path.exists(sz_path):
-            offset_list = []
-            f = open(sz_path)
-            s0 = 0
-            while True:
-                l = f.readline()
-                if l == "":
-                    break
-                sz = int(l.strip())
+        print("Init ObjListXFile from: ", path)
 
-                offset_list.append(s0)
-                s0 += BYTE_SIZE + sz
-            self.offset_list = offset_list
-            f.close()
-            print(len(offset_list))
+        if aux_path is not None:
+            with open(aux_path) as f:
+                self.offset_list = []
+                for l in f.readlines():
+                    self.offset_list.append(int(l.strip()))
         else:
-            self.offset_list = read_bin_file_offset_list(open(path, "rb"))
+            sz_path = "%s.sz" % path
+            if os.path.exists(sz_path):
+                offset_list = []
+                f = open(sz_path)
+                s0 = 0
+                while True:
+                    l = f.readline()
+                    if l == "":
+                        break
+                    sz = int(l.strip())
+
+                    offset_list.append(s0)
+                    s0 += BYTE_SIZE + sz
+                self.offset_list = offset_list
+                f.close()
+                print(len(offset_list))
+            else:
+                self.offset_list = read_bin_file_offset_list(open(path, "rb"))
         self.subFunc = subFunc
 
     def __len__(self):
@@ -475,6 +484,8 @@ class ObjListXFile:
     def getitem(self, item):
         # time.sleep(10)
         # return item
+        # print("item", item, self.offset_list[item])
+        # print()
         fin = open(self.path, "rb")
         if type(item) != int:
             print("???? ", item, len(self.offset_list))
@@ -490,6 +501,55 @@ class ObjListXFile:
         return self.getitem(item)
 
 
+class ObjOffsetListListXFile:
+    def __init__(self, bin_path, offset_listlist):
+        self.bin_path = bin_path
+        self.offset_listlist = offset_listlist
+        print("Init with bin: ", bin_path)
+        # print("Offset info", offset_listlist)
+
+    def __len__(self):
+        return len(self.offset_listlist)
+
+    def getoneitem(self, item):
+        f = open(self.bin_path, "rb")
+        ar = []
+        offset_list = self.offset_listlist[item]
+        # print(offset_list)
+        for offset in offset_list:
+            # print(offset)
+            v = read_next_xobject_from_bin_file(f, offset)
+            ar.append(v)
+        f.close()
+        return ar
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return self.getoneitem(item)
+        elif isinstance(item, slice):
+            ar = []
+            for i in range(item.start, item.stop):
+                ar.append(lazy_load.lazy(self.getoneitem, i))
+            return ar
+
+        else:
+            raise RuntimeError("Error: Undefined type of ", item)
+
+
+def load_map_file_text(path, sep="\t"):
+    d = {}
+    with open(path) as f:
+        while True:
+            line = f.readline()
+            if line == "":
+                break
+            line = line.strip()
+            parts = line.split(sep)
+            d[parts[0]] = parts[1]
+        f.close()
+    return d
+
+
 class XFileDataset(Dataset, ABC):
     def __init__(self, xfileObject):
         super(XFileDataset, self).__init__()
@@ -500,5 +560,7 @@ class XFileDataset(Dataset, ABC):
 
     def get(self, idx):
         return self.xfile[idx]
+
+
 if __name__ == "__main__":
     tt()

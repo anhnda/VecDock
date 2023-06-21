@@ -22,7 +22,7 @@ from datasets.process_mols import read_molecule, get_rec_graph, generate_conform
 from utils.diffusion_utils import modify_conformer, set_time
 from utils.utils import read_strings_from_txt
 from utils import so3, torus
-from utils.diskmap_utils import ObjListXFile
+from utils.diskmap_utils import ObjListXFile, load_map_file_text, ObjOffsetListListXFile
 
 
 class NoiseTransform(BaseTransform):
@@ -99,6 +99,8 @@ class PDBBind(Dataset):
         self.num_conformers = num_conformers
         self.all_atoms = all_atoms
         self.atom_radius, self.atom_max_neighbors = atom_radius, atom_max_neighbors
+        pt = os.path.join(self.full_cache_path, "heterographs.pkl")
+        print("PathX: ", pt)
         if not os.path.exists(os.path.join(self.full_cache_path, "heterographs.pkl")) \
                 or (require_ligand and not os.path.exists(os.path.join(self.full_cache_path, "rdkit_ligands.pkl"))):
             os.makedirs(self.full_cache_path, exist_ok=True)
@@ -144,21 +146,44 @@ class PDBBind(Dataset):
         print(f'Loading {len(complex_names_all)} complexes.')
 
         if self.esm_embeddings_path is not None:
-            id_to_embeddings = torch.load(self.esm_embeddings_path)
-            chain_embeddings_dictlist = defaultdict(list)
-            for key, embedding in id_to_embeddings.items():
-                key_name = key.split('_')[0]
-                if key_name in complex_names_all:
-                    chain_embeddings_dictlist[key_name].append(embedding)
-            lm_embeddings_chains_all = []
-            for name in complex_names_all:
-                lm_embeddings_chains_all.append(chain_embeddings_dictlist[name])
+            dxobj_path = "%s.dxobj" % self.esm_embeddings_path
+            if os.path.exists(dxobj_path):
+                print("Try loading with xobject file...")
+                dxobj_aux_path = "%s.aux" % dxobj_path
+                id_to_offset = load_map_file_text(dxobj_aux_path)
+                chain_embeddings_dictlist = defaultdict(list)
+
+                for key, offset in id_to_offset.items():
+                    key_name = key.split('_')[0]
+                    if key_name in complex_names_all:
+                        chain_embeddings_dictlist[key_name].append(int(offset))
+                lm_embeddings_chains_all = []
+                for name in complex_names_all:
+                    # print(chain_embeddings_dictlist[name])
+                    lm_embeddings_chains_all.append(chain_embeddings_dictlist[name])
+                lm_embeddings_chains_all = ObjOffsetListListXFile(dxobj_path, lm_embeddings_chains_all)
+            else:
+                print("Loading original dict")
+                id_to_embeddings = torch.load(self.esm_embeddings_path)
+                chain_embeddings_dictlist = defaultdict(list)
+                for key, embedding in id_to_embeddings.items():
+                    key_name = key.split('_')[0]
+                    if key_name in complex_names_all:
+                        chain_embeddings_dictlist[key_name].append(embedding)
+                lm_embeddings_chains_all = []
+                for name in complex_names_all:
+                    lm_embeddings_chains_all.append(chain_embeddings_dictlist[name])
+
         else:
             lm_embeddings_chains_all = [None] * len(complex_names_all)
 
         if self.num_workers > 1:
+            if len(complex_names_all) < 1100:
+                print("Reset X")
+                self.num_workers = 1
             # running preprocessing in parallel on multiple workers and saving the progress every 1000 complexes
             for i in range(len(complex_names_all) // 1000 + 1):
+                print("it ", i)
                 if os.path.exists(os.path.join(self.full_cache_path, f"heterographs{i}.pkl")):
                     print("Skip", os.path.join(self.full_cache_path, f"heterographs{i}.pkl"))
                     continue
@@ -284,6 +309,7 @@ class PDBBind(Dataset):
         print('Generating graphs for ligands and proteins')
         if self.num_workers > 1:
             # running preprocessing in parallel on multiple workers and saving the progress every 1000 complexes
+
             for i in range(len(self.protein_path_list) // 1000 + 1):
                 if os.path.exists(os.path.join(self.full_cache_path, f"heterographs{i}.pkl")):
                     continue
@@ -340,6 +366,7 @@ class PDBBind(Dataset):
                 pickle.dump((rdkit_ligands), f)
 
     def get_complex(self, par):
+        # print("Get X")
         name, lm_embedding_chains, ligand, ligand_description = par
         if not os.path.exists(os.path.join(self.pdbbind_dir, name)) and ligand is None:
             print("Folder not found", name)

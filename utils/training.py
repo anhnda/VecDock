@@ -95,7 +95,7 @@ class AverageMeter():
 
     def summary(self):
         if self.intervals == 1:
-            out = {k: v.item() / self.count for k, v in self.acc.items()}
+            out = {k: v.item() / (self.count + 1e-10) for k, v in self.acc.items()}
             return out
         else:
             out = {}
@@ -130,7 +130,7 @@ def train_epoch(model, loader, optimizer, device, t_to_sigma, loss_fn, ema_weigt
 
             gc.collect()
             # if ic == 3:
-            #     return meter.summary()
+            #    return meter.summary()
         except RuntimeError as e:
             if 'out of memory' in str(e):
                 print('| WARNING: ran out of memory, skipping batch')
@@ -161,8 +161,9 @@ def test_epoch(model, loader, device, t_to_sigma, loss_fn, test_sigma_intervals=
         meter_all = AverageMeter(
             ['loss', 'tr_loss', 'rot_loss', 'tor_loss', 'tr_base_loss', 'rot_base_loss', 'tor_base_loss'],
             unpooled_metrics=True, intervals=10)
-
+    ic = 0
     for data in tqdm(loader, total=len(loader)):
+        ic += 1
         try:
              # continue
             with torch.no_grad():
@@ -182,7 +183,8 @@ def test_epoch(model, loader, device, t_to_sigma, loss_fn, test_sigma_intervals=
                     [loss.cpu().detach(), tr_loss, rot_loss, tor_loss, tr_base_loss, rot_base_loss, tor_base_loss],
                     [sigma_index_tr, sigma_index_tr, sigma_index_rot, sigma_index_tor, sigma_index_tr, sigma_index_rot,
                      sigma_index_tor, sigma_index_tr])
-
+            # if ic == 3:
+            #     continue
         except RuntimeError as e:
             if 'out of memory' in str(e):
                 print('| WARNING: ran out of memory, skipping batch')

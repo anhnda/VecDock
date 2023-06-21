@@ -30,10 +30,10 @@ parser.add_argument('--out_dir', type=str, default='results/user_inference', hel
 parser.add_argument('--save_visualisation', action='store_true', default=False, help='Save a pdb file with all of the steps of the reverse diffusion')
 parser.add_argument('--samples_per_complex', type=int, default=10, help='Number of samples to generate')
 
-parser.add_argument('--model_dir', type=str, default='workdir/paper_score_model', help='Path to folder with trained score model and hyperparameters')
+parser.add_argument('--model_dir', type=str, default='workdir/big_score_model', help='Path to folder with trained score model and hyperparameters')
 parser.add_argument('--ckpt', type=str, default='best_ema_inference_epoch_model.pt', help='Checkpoint to use for the score model')
-parser.add_argument('--confidence_model_dir', type=str, default='workdir/paper_confidence_model', help='Path to folder with trained confidence model and hyperparameters')
-parser.add_argument('--confidence_ckpt', type=str, default='best_model_epoch75.pt', help='Checkpoint to use for the confidence model')
+parser.add_argument('--confidence_model_dir', type=str, default='workdir/confidence_model', help='Path to folder with trained confidence model and hyperparameters')
+parser.add_argument('--confidence_ckpt', type=str, default='best_model.pt', help='Checkpoint to use for the confidence model')
 
 parser.add_argument('--batch_size', type=int, default=32, help='')
 parser.add_argument('--no_final_step_noise', action='store_true', default=False, help='Use no noise in the final step of the reverse diffusion')

@@ -1,3 +1,4 @@
+import gc
 import itertools
 import math
 import os
@@ -7,6 +8,7 @@ from argparse import Namespace
 from functools import partial
 import copy
 
+import joblib
 import numpy as np
 import pandas as pd
 import torch
@@ -95,6 +97,7 @@ class ConfidenceDataset(Dataset):
             print("Full cache path: ", self.full_cache_path)
             os.makedirs(self.full_cache_path, exist_ok=True)
             self.preprocessing(original_model_cache)
+        print("Full cache path: ", self.full_cache_path)
 
         # load the graphs that the confidence model will use
         print(
@@ -105,6 +108,7 @@ class ConfidenceDataset(Dataset):
                 f'HAPPENING | Complex graphs path does not exist yet: {os.path.join(self.complex_graphs_cache, "heterographs.pkl")}. For that reason, we are now creating the dataset.')
             PDBBind(transform=None, root=args.data_dir, limit_complexes=args.limit_complexes,
                     receptor_radius=args.receptor_radius,
+                    num_workers=args.num_workers,
                     cache_path=args.cache_path, split_path=args.split_val if split == 'val' else args.split_train,
                     remove_hs=args.remove_hs, max_lig_size=None,
                     c_alpha_max_neighbors=args.c_alpha_max_neighbors,
@@ -118,12 +122,26 @@ class ConfidenceDataset(Dataset):
                     require_ligand=True)
 
         print(f'HAPPENING | Loading complex graphs from: {os.path.join(self.complex_graphs_cache, "heterographs.pkl")}')
-        with open(os.path.join(self.complex_graphs_cache, "heterographs.pkl"), 'rb') as f:
-            complex_graphs = pickle.load(f)
 
-        complex_graphs = ObjListXFile(os.path.join(self.full_cache_path, "heterographs.pkl"))
-        self.complex_graph_dict = {d.name: d for d in complex_graphs}
+        complex_graphs = ObjListXFile(os.path.join(self.complex_graphs_cache, "heterographs.pkl"))
+        print("Get name in Xfile")
+        self.complex_graph_dict = {}
+        complex_graph_dict_path = os.path.join(self.complex_graphs_cache, "complex_name_2_id.pkl")
+        if not os.path.exists(complex_graph_dict_path):
+            print(complex_graph_dict_path, " not exist. Creating...")
+            for i in tqdm(range(len(complex_graphs))):
+                d = complex_graphs[i]
+                name = copy.deepcopy(d.name)
+                self.complex_graph_dict[name] = i
+                del d
+                gc.collect()
+            joblib.dump(self.complex_graph_dict, complex_graph_dict_path)
+        else:
+            self.complex_graph_dict = joblib.load(complex_graph_dict_path)
 
+
+
+        self.complex_graphs_xfile = complex_graphs
         if self.cache_ids_to_combine is None:
             print(
                 f'HAPPENING | Loading positions and rmsds from: {os.path.join(self.full_cache_path, "ligand_positions.pkl")}')
@@ -147,7 +165,7 @@ class ConfidenceDataset(Dataset):
                 print(
                     f'HAPPENING | Loading positions and rmsds from cache_id from the path: {os.path.join(self.full_cache_path, "ligand_positions_" + str(cache_id) + ".pkl")}')
                 if not os.path.exists(
-                    os.path.join(self.full_cache_path, f"ligand_positions_id{cache_id}.pkl")): raise Exception(
+                        os.path.join(self.full_cache_path, f"ligand_positions_id{cache_id}.pkl")): raise Exception(
                     f'The generated ligand positions with cache_id do not exist: {cache_id}')  # be careful with changing this error message since it is sometimes cought in a try catch
                 with open(os.path.join(self.full_cache_path, f"ligand_positions_id{cache_id}.pkl"), 'rb') as f:
                     full_ligand_positions, rmsds = pickle.load(f)
@@ -189,7 +207,7 @@ class ConfidenceDataset(Dataset):
         return len(self.dataset_names)
 
     def get(self, idx):
-        complex_graph = copy.deepcopy(self.complex_graph_dict[self.dataset_names[idx]])
+        complex_graph = copy.deepcopy(self.complex_graphs_xfile[self.complex_graph_dict[self.dataset_names[idx]]])
         positions, rmsds = self.positions_rmsds_dict[self.dataset_names[idx]]
 
         if self.balance:
@@ -304,7 +322,7 @@ class ConfidenceDataset(Dataset):
                 np.asarray([complex_graph['ligand'].pos.cpu().numpy() for complex_graph in predictions_list]))
             names.append(orig_complex_graph.name[0])
             assert (
-                        len(orig_complex_graph.name) == 1)  # I just put this assert here because of the above line where I assumed that the list is always only lenght 1. Just in case it isn't maybe check what the names in there are.
+                    len(orig_complex_graph.name) == 1)  # I just put this assert here because of the above line where I assumed that the list is always only lenght 1. Just in case it isn't maybe check what the names in there are.
         with open(os.path.join(self.full_cache_path,
                                f"ligand_positions{'' if self.cache_creation_id is None else '_id' + str(self.cache_creation_id)}.pkl"),
                   'wb') as f:

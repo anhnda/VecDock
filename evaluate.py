@@ -43,7 +43,7 @@ parser.add_argument('--ode', action='store_true', default=False, help='Whether t
 parser.add_argument('--wandb', action='store_true', default=False, help='')
 parser.add_argument('--inference_steps', type=int, default=20, help='Number of denoising steps')
 parser.add_argument('--limit_complexes', type=int, default=0, help='Limit to the number of complexes')
-parser.add_argument('--num_workers', type=int, default=1, help='Number of workers for dataset creation')
+parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for dataset creation')
 parser.add_argument('--tqdm', action='store_true', default=False, help='Whether to show progress bar')
 parser.add_argument('--save_visualisation', action='store_true', default=False, help='Whether to save visualizations')
 parser.add_argument('--samples_per_complex', type=int, default=1, help='Number of poses to sample for each complex')

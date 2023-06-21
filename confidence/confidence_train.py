@@ -83,6 +83,7 @@ parser.add_argument('--scale_by_sigma', action='store_true', default=True, help=
 parser.add_argument('--ns', type=int, default=16, help='Number of hidden features per node of order 0')
 parser.add_argument('--nv', type=int, default=4, help='Number of hidden features per node of order >0')
 parser.add_argument('--distance_embed_dim', type=int, default=32, help='')
+parser.add_argument('--num_workers', type=int, default=2, help='')
 parser.add_argument('--cross_distance_embed_dim', type=int, default=32, help='')
 parser.add_argument('--no_batch_norm', action='store_true', default=False, help='If set, it removes the batch norm')
 parser.add_argument('--use_second_order_repr', action='store_true', default=False, help='Whether to use only up to first order representations or also second')
@@ -223,6 +224,8 @@ def train(args, model, optimizer, scheduler, train_loader, val_loader, run_dir):
             wandb.log(logs, step=epoch + 1)
 
         if scheduler:
+            print("Val metrics")
+            print(val_metrics)
             scheduler.step(val_metrics[args.main_metric])
 
         state_dict = model.state_dict()

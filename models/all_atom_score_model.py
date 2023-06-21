@@ -157,6 +157,8 @@ class TensorProductScoreModel(torch.nn.Module):
                 )
 
     def forward(self, data):
+        data = data.to(torch.device("cuda"))
+
         if not self.confidence_mode:
             tr_sigma, rot_sigma, tor_sigma = self.t_to_sigma(*[data.complex_t[noise_type] for noise_type in ['tr', 'rot', 'tor']])
         else:
